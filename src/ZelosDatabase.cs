@@ -57,7 +57,7 @@ public class ZelosDatabase : IZelosDatabase
             }
             else
             {
-                _logger.LogInformation("Zelos database file ({filePath}) not found. Creating new database...", _filePath);
+                _logger.LogWarning("Zelos database file ({filePath}) not found. Creating new database...", _filePath);
                 using (_ = File.Create(_filePath))
                 {
                 }
