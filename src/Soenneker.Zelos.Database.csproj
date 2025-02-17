@@ -1,0 +1,60 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0</TargetFrameworks>
+        <Nullable>enable</Nullable>
+        <Platforms>AnyCPU</Platforms>
+        <NoWarn>$(NoWarn);1591</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <Description>A lightweight, thread-safe asynchronous JSON-based document database</Description>
+        <Version Condition="'$(BUILD_VERSION)' == ''">3.0.0</Version>
+        <Version Condition="'$(BUILD_VERSION)' != ''">$(BUILD_VERSION)</Version>
+        <AssemblyName>Soenneker.Zelos.Database</AssemblyName>
+        <PackageId>Soenneker.Zelos.Database</PackageId>
+        <PackageTags>zelos database json async threadsafe lightweight document db zelosdatabase util csharp dotnet c# .net</PackageTags>
+        <Copyright>Copyright © 2025 Jake Soenneker</Copyright>
+        <Authors>Jake Soenneker</Authors>
+        <Company>https://soenneker.com</Company>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <IsPackable>true</IsPackable>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/soenneker/soenneker.zelos.database</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/soenneker/soenneker.zelos.database</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <RepositoryBranch>main</RepositoryBranch>
+        <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <LangVersion>latest</LangVersion>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Compile Remove="NewFolder\**" />
+      <EmbeddedResource Remove="NewFolder\**" />
+      <None Remove="NewFolder\**" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <None Include="..\CONTRIBUTING.md" Link="CONTRIBUTING.md" />
+        <None Include="..\README.md" Pack="true" PackagePath="\" />
+        <None Include="..\LICENSE" Pack="true" PackagePath="\" />
+        <None Include="..\icon.png" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Soenneker.Extensions.Configuration" Version="3.0.643" />
+        <PackageReference Include="Soenneker.Extensions.Task" Version="3.0.88" />
+        <PackageReference Include="Soenneker.Utils.AsyncSingleton" Version="3.0.644" />
+        <PackageReference Include="Soenneker.Utils.MemoryStream" Version="3.0.1140" />
+        <PackageReference Include="Soenneker.Utils.Method" Version="3.0.429" />
+        <PackageReference Include="Soenneker.Utils.SingletonDictionary" Version="3.0.934" />
+        <PackageReference Include="Soenneker.Utils.String" Version="3.0.2356" />
+        <PackageReference Include="Soenneker.Zelos.Container" Version="3.0.1" />
+    </ItemGroup>
+</Project>
