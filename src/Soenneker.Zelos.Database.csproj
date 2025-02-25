@@ -48,8 +48,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.Task" Version="3.0.88" />
-        <PackageReference Include="Soenneker.Utils.AsyncSingleton" Version="3.0.657" />
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="3.0.1151" />
         <PackageReference Include="Soenneker.Utils.SingletonDictionary" Version="3.0.961" />
         <PackageReference Include="Soenneker.Zelos.Container" Version="3.0.42" />
