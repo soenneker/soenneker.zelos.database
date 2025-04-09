@@ -50,6 +50,6 @@
     <ItemGroup>
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="3.0.1218" />
         <PackageReference Include="Soenneker.Utils.SingletonDictionary" Version="3.0.1065" />
-        <PackageReference Include="Soenneker.Zelos.Container" Version="3.0.205" />
+        <PackageReference Include="Soenneker.Zelos.Container" Version="3.0.207" />
     </ItemGroup>
 </Project>
