@@ -20,7 +20,7 @@ using Soenneker.Zelos.Container;
 namespace Soenneker.Zelos.Database;
 
 /// <inheritdoc cref="IZelosDatabase"/>
-public class ZelosDatabase : IZelosDatabase
+public sealed class ZelosDatabase : IZelosDatabase
 {
     private readonly string _filePath;
     private readonly IMemoryStreamUtil _memoryStreamUtil;
@@ -238,7 +238,5 @@ public class ZelosDatabase : IZelosDatabase
         await _containers.DisposeAsync().NoSync();
 
         await _initializer.DisposeAsync().NoSync();
-
-        GC.SuppressFinalize(this);
     }
 }
