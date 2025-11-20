@@ -50,6 +50,6 @@
         <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.94" />
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="4.0.1300" />
         <PackageReference Include="Soenneker.Utils.SingletonDictionary" Version="4.0.1115" />
-        <PackageReference Include="Soenneker.Zelos.Container" Version="4.0.273" />
+        <PackageReference Include="Soenneker.Zelos.Container" Version="4.0.275" />
     </ItemGroup>
 </Project>
