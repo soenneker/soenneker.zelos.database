@@ -1,21 +1,22 @@
 ﻿using Microsoft.Extensions.Logging;
 using Nito.AsyncEx;
-using Soenneker.Extensions.Enumerable;
+using Soenneker.Atomics.ValueBools;
+using Soenneker.Dtos.IdValuePair;
 using Soenneker.Extensions.Stream;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
 using Soenneker.Utils.AsyncSingleton;
 using Soenneker.Utils.Json;
 using Soenneker.Utils.MemoryStream.Abstract;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
-using Soenneker.Dtos.IdValuePair;
 using Soenneker.Utils.SingletonDictionary;
 using Soenneker.Zelos.Abstract;
 using Soenneker.Zelos.Container;
+using System;
+using System.Collections.Generic;
+using Soenneker.Extensions.String;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Soenneker.Zelos.Database;
 
@@ -38,10 +39,11 @@ public sealed class ZelosDatabase : IZelosDatabase
     private readonly AsyncLock _saveLock = new();
 
     private readonly HashSet<string> _dirtyContainers = [];
-    private bool _disposed;
 
-    // prevents re-entrance for Save()
-    private bool _isSaving;
+    private ValueAtomicBool _disposed = new(false);
+
+    // Prevents re-entrance for Save() and allows the timer loop to cheaply skip ticks.
+    private ValueAtomicBool _isSaving = new(false);
 
     public ZelosDatabase(string filePath, IMemoryStreamUtil memoryStreamUtil, ILogger logger)
     {
@@ -58,6 +60,7 @@ public sealed class ZelosDatabase : IZelosDatabase
             else
             {
                 _logger.LogWarning("Zelos database file ({filePath}) not found. Creating new database...", _filePath);
+
                 using (_ = File.Create(_filePath))
                 {
                 }
@@ -73,11 +76,13 @@ public sealed class ZelosDatabase : IZelosDatabase
 
     private async ValueTask<IZelosContainer> LoadContainer(string id, CancellationToken cancellationToken)
     {
-        await _initializer.Init(cancellationToken).NoSync();
+        await _initializer.Init(cancellationToken)
+                          .NoSync();
 
         _logger.LogInformation("Loading Zelos container ({id}) from database...", id);
 
-        Dictionary<string, List<IdValuePair>>? data = await Load(cancellationToken).NoSync();
+        Dictionary<string, List<IdValuePair>>? data = await Load(cancellationToken)
+            .NoSync();
 
         if (data == null)
         {
@@ -99,35 +104,65 @@ public sealed class ZelosDatabase : IZelosDatabase
     {
         using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
 
-        while (await timer.WaitForNextTickAsync(cancellationToken).NoSync())
+        try
         {
-            if (_isSaving)
-                continue;
+            while (await timer.WaitForNextTickAsync(cancellationToken)
+                              .NoSync())
+            {
+                if (_disposed.Value)
+                    return;
 
-            await Save(cancellationToken).NoSync();
+                // Skip this tick if a save is already in progress (including a user-triggered save).
+                if (!_isSaving.TrySetTrue())
+                    continue;
+
+                try
+                {
+                    await Save(cancellationToken)
+                        .NoSync();
+                }
+                finally
+                {
+                    _isSaving.Value = false;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on dispose/cancel.
         }
     }
 
     public async ValueTask Save(CancellationToken cancellationToken = default)
     {
-        using IDisposable semaphoreReleaser = await _saveSemaphore.LockAsync(cancellationToken).ConfigureAwait(false);
+        if (_disposed.Value)
+            return;
 
-        using (await _saveLock.LockAsync(cancellationToken).ConfigureAwait(false))
+        try
         {
-            if (_dirtyContainers.Count == 0 || _disposed)
-                return;
+            using IDisposable semaphoreReleaser = await _saveSemaphore.LockAsync(cancellationToken)
+                                                                      .ConfigureAwait(false);
 
-            _isSaving = true;
+            using (await _saveLock.LockAsync(cancellationToken)
+                                  .ConfigureAwait(false))
+            {
+                if (_dirtyContainers.Count == 0 || _disposed.Value)
+                    return;
 
-            await SaveInternal(cancellationToken).NoSync();
-
-            _isSaving = false;
+                await SaveInternal(cancellationToken)
+                    .NoSync();
+            }
+        }
+        finally
+        {
+            _isSaving.Value = false;
         }
     }
 
     private async ValueTask SaveInternal(CancellationToken cancellationToken)
     {
-        Dictionary<string, List<IdValuePair>>? data = await Load(cancellationToken).NoSync();
+        Dictionary<string, List<IdValuePair>>? data = await Load(cancellationToken)
+            .NoSync();
 
         if (data == null)
             return;
@@ -139,27 +174,48 @@ public sealed class ZelosDatabase : IZelosDatabase
             {
                 _logger.LogTrace("Saving container ({container})...", dirtyContainer);
 
-                IZelosContainer container = await _containers.Get(dirtyContainer, cancellationToken).NoSync();
+                IZelosContainer container = await _containers.Get(dirtyContainer, cancellationToken)
+                                                             .NoSync();
 
                 data[dirtyContainer] = container.GetZelosItems();
             }
 
             _logger.LogTrace("Saving data to Zelos database ({filePath})...", _filePath);
 
-            using MemoryStream memoryStream = await _memoryStreamUtil.Get(cancellationToken).NoSync();
-            await JsonUtil.SerializeToStream(memoryStream, data, null, cancellationToken).NoSync();
+            using MemoryStream memoryStream = await _memoryStreamUtil.Get(cancellationToken)
+                                                                     .NoSync();
+            await JsonUtil.SerializeToStream(memoryStream, data, null, cancellationToken)
+                          .NoSync();
 
             memoryStream.ToStart();
 
             await using var fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.None);
             fileStream.SetLength(0);
-            await memoryStream.CopyToAsync(fileStream, cancellationToken).NoSync();
+            await memoryStream.CopyToAsync(fileStream, cancellationToken)
+                              .NoSync();
 
             _dirtyContainers.Clear();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving data: {message}", ex.Message);
+        }
+    }
+
+    private async ValueTask SaveFinal(CancellationToken cancellationToken = default)
+    {
+        // Ensure final save is serialized with any in-flight save.
+        using IDisposable semaphoreReleaser = await _saveSemaphore.LockAsync(cancellationToken)
+                                                                  .ConfigureAwait(false);
+
+        using (await _saveLock.LockAsync(cancellationToken)
+                              .ConfigureAwait(false))
+        {
+            if (_dirtyContainers.Count == 0)
+                return;
+
+            await SaveInternal(cancellationToken)
+                .NoSync();
         }
     }
 
@@ -170,7 +226,8 @@ public sealed class ZelosDatabase : IZelosDatabase
         try
         {
             // TODO: Don't allocate string, deserialize directly
-            json = await File.ReadAllTextAsync(_filePath, cancellationToken).NoSync();
+            json = await File.ReadAllTextAsync(_filePath, cancellationToken)
+                             .NoSync();
         }
         catch (Exception e)
         {
@@ -203,7 +260,8 @@ public sealed class ZelosDatabase : IZelosDatabase
 
     public async ValueTask MarkDirty(string containerName, CancellationToken cancellationToken = default)
     {
-        using (await _saveLock.LockAsync(cancellationToken).ConfigureAwait(false))
+        using (await _saveLock.LockAsync(cancellationToken)
+                              .ConfigureAwait(false))
         {
             _dirtyContainers.Add(containerName);
         }
@@ -222,21 +280,32 @@ public sealed class ZelosDatabase : IZelosDatabase
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        // first caller wins
+        if (!_disposed.TrySetTrue())
             return;
 
         _logger.LogDebug("Disposing ZelosDatabase ({name})...", _filePath);
 
-        await _cts.CancelAsync().NoSync(); // Stop the periodic timer
+        // Stop the periodic timer loop
+        try
+        {
+            await _cts.CancelAsync()
+                      .NoSync();
+        }
+        catch (Exception)
+        {
+            // best effort
+        }
 
-        await Save().NoSync(); // Ensure final save
+        // Ensure any in-flight Save() is complete, then do one last save of remaining dirty containers.
+        await SaveFinal(CancellationToken.None)
+            .NoSync();
 
-        await _containers.DisposeAsync().NoSync();
+        await _containers.DisposeAsync()
+                         .NoSync();
+        await _initializer.DisposeAsync()
+                          .NoSync();
 
-        _disposed = true;
-
-        await _containers.DisposeAsync().NoSync();
-
-        await _initializer.DisposeAsync().NoSync();
+        _cts.Dispose();
     }
 }
