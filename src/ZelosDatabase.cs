@@ -5,7 +5,6 @@ using Soenneker.Dtos.IdValuePair;
 using Soenneker.Extensions.Stream;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
-using Soenneker.Utils.AsyncSingleton;
 using Soenneker.Utils.Json;
 using Soenneker.Utils.MemoryStream.Abstract;
 using Soenneker.Utils.SingletonDictionary;
@@ -17,6 +16,7 @@ using Soenneker.Extensions.String;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Soenneker.Utils.AsyncInitializers;
 
 namespace Soenneker.Zelos.Database;
 
@@ -30,7 +30,7 @@ public sealed class ZelosDatabase : IZelosDatabase
     private readonly SingletonDictionary<IZelosContainer> _containers;
 
     private readonly CancellationTokenSource _cts = new();
-    private readonly AsyncSingleton _initializer;
+    private readonly AsyncInitializer _initializer;
 
     // Ensures only one save operation runs at a time, preventing file write conflicts
     private readonly AsyncSemaphore _saveSemaphore = new(1);
@@ -51,7 +51,7 @@ public sealed class ZelosDatabase : IZelosDatabase
         _memoryStreamUtil = memoryStreamUtil;
         _logger = logger;
 
-        _initializer = new AsyncSingleton((token, obj) =>
+        _initializer = new AsyncInitializer(token =>
         {
             if (File.Exists(_filePath))
             {
@@ -65,8 +65,6 @@ public sealed class ZelosDatabase : IZelosDatabase
                 {
                 }
             }
-
-            return new object();
         });
 
         _containers = new SingletonDictionary<IZelosContainer>(async (id, token, _) => await LoadContainer(id, token));
@@ -184,7 +182,7 @@ public sealed class ZelosDatabase : IZelosDatabase
 
             using MemoryStream memoryStream = await _memoryStreamUtil.Get(cancellationToken)
                                                                      .NoSync();
-            await JsonUtil.SerializeToStream(memoryStream, data, null, cancellationToken)
+            await JsonUtil.SerializeToStream(memoryStream, data, null, null, cancellationToken)
                           .NoSync();
 
             memoryStream.ToStart();
