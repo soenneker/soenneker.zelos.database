@@ -67,7 +67,7 @@ public sealed class ZelosDatabase : IZelosDatabase
             }
         });
 
-        _containers = new SingletonDictionary<IZelosContainer>(async (id, token, _) => await LoadContainer(id, token));
+        _containers = new SingletonDictionary<IZelosContainer>(async (id, token) => await LoadContainer(id, token));
 
         _ = RunPeriodicSave(_cts.Token);
     }
