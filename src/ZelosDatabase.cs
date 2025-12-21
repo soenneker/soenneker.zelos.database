@@ -1,10 +1,12 @@
 ﻿using Microsoft.Extensions.Logging;
-using Nito.AsyncEx;
+using Soenneker.Asyncs.Locks;
 using Soenneker.Atomics.ValueBools;
 using Soenneker.Dtos.IdValuePair;
 using Soenneker.Extensions.Stream;
+using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
+using Soenneker.Utils.AsyncInitializers;
 using Soenneker.Utils.Json;
 using Soenneker.Utils.MemoryStream.Abstract;
 using Soenneker.Utils.SingletonDictionary;
@@ -12,11 +14,9 @@ using Soenneker.Zelos.Abstract;
 using Soenneker.Zelos.Container;
 using System;
 using System.Collections.Generic;
-using Soenneker.Extensions.String;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Soenneker.Utils.AsyncInitializers;
 
 namespace Soenneker.Zelos.Database;
 
@@ -32,17 +32,17 @@ public sealed class ZelosDatabase : IZelosDatabase
     private readonly CancellationTokenSource _cts = new();
     private readonly AsyncInitializer _initializer;
 
-    // Ensures only one save operation runs at a time, preventing file write conflicts
-    private readonly AsyncSemaphore _saveSemaphore = new(1);
+    // Serializes Save() / SaveFinal() end-to-end (including file IO).
+    private readonly AsyncLock _saveGate = new();
 
-    // Ensures atomic access to _dirtyContainers, preventing race conditions
-    private readonly AsyncLock _saveLock = new();
+    // Protects _dirtyContainers only.
+    private readonly AsyncLock _dirtyLock = new();
 
     private readonly HashSet<string> _dirtyContainers = [];
 
     private ValueAtomicBool _disposed = new(false);
 
-    // Prevents re-entrance for Save() and allows the timer loop to cheaply skip ticks.
+    // Timer tick skip optimization only. Do not toggle this in Save()/SaveFinal().
     private ValueAtomicBool _isSaving = new(false);
 
     public ZelosDatabase(string filePath, IMemoryStreamUtil memoryStreamUtil, ILogger logger)
@@ -89,12 +89,9 @@ public sealed class ZelosDatabase : IZelosDatabase
         }
 
         if (data.TryGetValue(id, out List<IdValuePair>? containerData))
-        {
             return new ZelosContainer(id, this, _logger, containerData);
-        }
 
         _logger.LogWarning("Zelos container ({id}) not found in database file ({filePath}), creating new...", id, _filePath);
-
         return new ZelosContainer(id, this, _logger);
     }
 
@@ -136,45 +133,56 @@ public sealed class ZelosDatabase : IZelosDatabase
         if (_disposed.Value)
             return;
 
-        try
+        // Serialize full save pipeline (including IO) with SaveFinal() and other callers.
+        using (await _saveGate.Lock(cancellationToken)
+                              .NoSync())
         {
-            using IDisposable semaphoreReleaser = await _saveSemaphore.LockAsync(cancellationToken)
-                                                                      .ConfigureAwait(false);
+            if (_disposed.Value)
+                return;
 
-            using (await _saveLock.LockAsync(cancellationToken)
-                                  .ConfigureAwait(false))
-            {
-                if (_dirtyContainers.Count == 0 || _disposed.Value)
-                    return;
+            // Snapshot dirty set quickly under dirty lock, then release it.
+            List<string>? dirtySnapshot = await DrainDirtyContainers(cancellationToken)
+                .NoSync();
+            if (dirtySnapshot == null || dirtySnapshot.Count == 0)
+                return;
 
-                await SaveInternal(cancellationToken)
-                    .NoSync();
-            }
-        }
-        finally
-        {
-            _isSaving.Value = false;
+            await SaveInternal(dirtySnapshot, cancellationToken)
+                .NoSync();
         }
     }
 
-    private async ValueTask SaveInternal(CancellationToken cancellationToken)
+    private async ValueTask<List<string>?> DrainDirtyContainers(CancellationToken cancellationToken)
+    {
+        using (await _dirtyLock.Lock(cancellationToken)
+                               .NoSync())
+        {
+            if (_dirtyContainers.Count == 0)
+                return null;
+
+            var list = new List<string>(_dirtyContainers.Count);
+            foreach (string id in _dirtyContainers)
+                list.Add(id);
+
+            _dirtyContainers.Clear();
+            return list;
+        }
+    }
+
+    private async ValueTask SaveInternal(List<string> dirtyContainers, CancellationToken cancellationToken)
     {
         Dictionary<string, List<IdValuePair>>? data = await Load(cancellationToken)
             .NoSync();
-
         if (data == null)
             return;
 
         try
         {
-            // Update only dirty containers
-            foreach (string dirtyContainer in _dirtyContainers)
+            foreach (string dirtyContainer in dirtyContainers)
             {
                 _logger.LogTrace("Saving container ({container})...", dirtyContainer);
 
                 IZelosContainer container = await _containers.Get(dirtyContainer, cancellationToken)
                                                              .NoSync();
-
                 data[dirtyContainer] = container.GetZelosItems();
             }
 
@@ -191,28 +199,45 @@ public sealed class ZelosDatabase : IZelosDatabase
             fileStream.SetLength(0);
             await memoryStream.CopyToAsync(fileStream, cancellationToken)
                               .NoSync();
-
-            _dirtyContainers.Clear();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving data: {message}", ex.Message);
+
+            // We already removed these IDs from _dirtyContainers.
+            // If you want "at least once" semantics, you can re-mark them dirty here.
+            // Best-effort requeue (no throw):
+            try
+            {
+                using (await _dirtyLock.Lock(cancellationToken)
+                                       .NoSync())
+                {
+                    foreach (string id in dirtyContainers)
+                        _dirtyContainers.Add(id);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
         }
     }
 
     private async ValueTask SaveFinal(CancellationToken cancellationToken = default)
     {
-        // Ensure final save is serialized with any in-flight save.
-        using IDisposable semaphoreReleaser = await _saveSemaphore.LockAsync(cancellationToken)
-                                                                  .ConfigureAwait(false);
-
-        using (await _saveLock.LockAsync(cancellationToken)
-                              .ConfigureAwait(false))
+        // Ensure final save is serialized with any in-flight Save().
+        using (await _saveGate.Lock(cancellationToken)
+                              .NoSync())
         {
-            if (_dirtyContainers.Count == 0)
+            if (_disposed.Value)
                 return;
 
-            await SaveInternal(cancellationToken)
+            List<string>? dirtySnapshot = await DrainDirtyContainers(cancellationToken)
+                .NoSync();
+            if (dirtySnapshot == null || dirtySnapshot.Count == 0)
+                return;
+
+            await SaveInternal(dirtySnapshot, cancellationToken)
                 .NoSync();
         }
     }
@@ -234,14 +259,11 @@ public sealed class ZelosDatabase : IZelosDatabase
         }
 
         if (json.IsNullOrEmpty())
-        {
             return new Dictionary<string, List<IdValuePair>>();
-        }
 
         try
         {
             var data = JsonUtil.Deserialize<Dictionary<string, List<IdValuePair>>>(json)!;
-
             if (data != null)
                 return data;
         }
@@ -252,29 +274,27 @@ public sealed class ZelosDatabase : IZelosDatabase
         }
 
         _logger.LogCritical("Cannot load (and save) from Zelos database ({filePath})", _filePath);
-
         return null;
     }
 
     public async ValueTask MarkDirty(string containerName, CancellationToken cancellationToken = default)
     {
-        using (await _saveLock.LockAsync(cancellationToken)
-                              .ConfigureAwait(false))
+        if (_disposed.Value)
+            return;
+
+        using (await _dirtyLock.Lock(cancellationToken)
+                               .NoSync())
         {
             _dirtyContainers.Add(containerName);
         }
     }
 
-    public ValueTask<IZelosContainer> GetContainer(string containerName, CancellationToken cancellationToken = default)
-    {
-        return _containers.Get(containerName, cancellationToken);
-    }
+    public ValueTask<IZelosContainer> GetContainer(string containerName, CancellationToken cancellationToken = default) =>
+        _containers.Get(containerName, cancellationToken);
 
     public ValueTask UnloadContainer(string containerName, CancellationToken cancellationToken = default)
-    {
         // Will dispose the container
-        return _containers.Remove(containerName, cancellationToken);
-    }
+        => _containers.Remove(containerName, cancellationToken);
 
     public async ValueTask DisposeAsync()
     {
@@ -290,7 +310,7 @@ public sealed class ZelosDatabase : IZelosDatabase
             await _cts.CancelAsync()
                       .NoSync();
         }
-        catch (Exception)
+        catch
         {
             // best effort
         }
