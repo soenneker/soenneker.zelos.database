@@ -9,7 +9,6 @@ using Soenneker.Extensions.ValueTask;
 using Soenneker.Utils.AsyncInitializers;
 using Soenneker.Utils.Json;
 using Soenneker.Utils.MemoryStream.Abstract;
-using Soenneker.Utils.SingletonDictionary;
 using Soenneker.Zelos.Abstract;
 using Soenneker.Zelos.Container;
 using System;
@@ -17,6 +16,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Soenneker.Dictionaries.Singletons;
 
 namespace Soenneker.Zelos.Database;
 
