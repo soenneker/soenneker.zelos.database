@@ -50,7 +50,7 @@
         <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.95" />
         <PackageReference Include="Soenneker.Utils.AsyncInitializers" Version="4.0.5" />
         <PackageReference Include="Soenneker.Utils.MemoryStream" Version="4.0.1339" />
-        <PackageReference Include="Soenneker.Dictionaries.Singletons" Version="4.0.3" />
+        <PackageReference Include="Soenneker.Dictionaries.Singletons" Version="4.0.4" />
         <PackageReference Include="Soenneker.Zelos.Container" Version="4.0.299" />
     </ItemGroup>
 </Project>
