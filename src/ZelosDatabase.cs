@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Soenneker.Asyncs.Locks;
 using Soenneker.Atomics.ValueBools;
 using Soenneker.Dtos.IdValuePair;
@@ -7,6 +7,7 @@ using Soenneker.Extensions.String;
 using Soenneker.Extensions.Task;
 using Soenneker.Extensions.ValueTask;
 using Soenneker.Utils.AsyncInitializers;
+using Soenneker.Utils.File.Abstract;
 using Soenneker.Utils.Json;
 using Soenneker.Utils.MemoryStream.Abstract;
 using Soenneker.Zelos.Abstract;
@@ -24,6 +25,7 @@ namespace Soenneker.Zelos.Database;
 public sealed class ZelosDatabase : IZelosDatabase
 {
     private readonly string _filePath;
+    private readonly IFileUtil _fileUtil;
     private readonly IMemoryStreamUtil _memoryStreamUtil;
     private readonly ILogger _logger;
 
@@ -45,15 +47,16 @@ public sealed class ZelosDatabase : IZelosDatabase
     // Timer tick skip optimization only. Do not toggle this in Save()/SaveFinal().
     private ValueAtomicBool _isSaving = new(false);
 
-    public ZelosDatabase(string filePath, IMemoryStreamUtil memoryStreamUtil, ILogger logger)
+    public ZelosDatabase(string filePath, IFileUtil fileUtil, IMemoryStreamUtil memoryStreamUtil, ILogger logger)
     {
         _filePath = filePath;
+        _fileUtil = fileUtil;
         _memoryStreamUtil = memoryStreamUtil;
         _logger = logger;
 
-        _initializer = new AsyncInitializer(token =>
+        _initializer = new AsyncInitializer(async token =>
         {
-            if (File.Exists(_filePath))
+            if (await _fileUtil.Exists(_filePath, token))
             {
                 _logger.LogDebug("Using Zelos database file ({filePath})", _filePath);
             }
@@ -61,9 +64,7 @@ public sealed class ZelosDatabase : IZelosDatabase
             {
                 _logger.LogWarning("Zelos database file ({filePath}) not found. Creating new database...", _filePath);
 
-                using (_ = File.Create(_filePath))
-                {
-                }
+                await _fileUtil.Write(_filePath, new MemoryStream(), log: false, token);
             }
         });
 
@@ -195,10 +196,7 @@ public sealed class ZelosDatabase : IZelosDatabase
 
             memoryStream.ToStart();
 
-            await using var fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.None);
-            fileStream.SetLength(0);
-            await memoryStream.CopyToAsync(fileStream, cancellationToken)
-                              .NoSync();
+            await _fileUtil.Write(_filePath, memoryStream, log: false, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -249,8 +247,7 @@ public sealed class ZelosDatabase : IZelosDatabase
         try
         {
             // TODO: Don't allocate string, deserialize directly
-            json = await File.ReadAllTextAsync(_filePath, cancellationToken)
-                             .NoSync();
+            json = await _fileUtil.Read(_filePath, log: false, cancellationToken);
         }
         catch (Exception e)
         {
