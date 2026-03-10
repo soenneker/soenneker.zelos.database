@@ -47,7 +47,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.104" />
+        <PackageReference Include="Soenneker.Extensions.Stream" Version="4.0.106" />
         <PackageReference Include="Soenneker.Utils.AsyncInitializers" Version="4.0.5" />
         <PackageReference Include="Soenneker.Utils.File" Version="4.0.2086" />
         <PackageReference Include="Soenneker.Dictionaries.Singletons" Version="4.0.27" />
