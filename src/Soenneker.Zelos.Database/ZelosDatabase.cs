@@ -289,7 +289,7 @@ public sealed class ZelosDatabase : IZelosDatabase
     public ValueTask<IZelosContainer> GetContainer(string containerName, CancellationToken cancellationToken = default) =>
         _containers.Get(containerName, cancellationToken);
 
-    public ValueTask UnloadContainer(string containerName, CancellationToken cancellationToken = default)
+    public ValueTask<bool> UnloadContainer(string containerName, CancellationToken cancellationToken = default)
         // Will dispose the container
         => _containers.Remove(containerName, cancellationToken);
 
