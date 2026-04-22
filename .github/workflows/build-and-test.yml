@@ -38,7 +38,7 @@ jobs:
         run: dotnet build test/Soenneker.Zelos.Database.Tests/Soenneker.Zelos.Database.Tests.csproj --configuration Release --no-restore --verbosity minimal
 
       - name: Test
-        run: dotnet test test/Soenneker.Zelos.Database.Tests/Soenneker.Zelos.Database.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
+        run: dotnet test --project test/Soenneker.Zelos.Database.Tests/Soenneker.Zelos.Database.Tests.csproj --configuration Release --no-build --no-restore --verbosity minimal
 
       - name: Pack
         run: dotnet pack src/Soenneker.Zelos.Database/Soenneker.Zelos.Database.csproj --configuration Release --no-build --no-restore --output . --verbosity minimal
