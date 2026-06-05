@@ -129,6 +129,11 @@ public sealed class ZelosDatabase : IZelosDatabase
         }
     }
 
+    /// <summary>
+    /// Executes the save operation.
+    /// </summary>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     public async ValueTask Save(CancellationToken cancellationToken = default)
     {
         if (_disposed.Value)
@@ -274,6 +279,12 @@ public sealed class ZelosDatabase : IZelosDatabase
         return null;
     }
 
+    /// <summary>
+    /// Executes the mark dirty operation.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     public async ValueTask MarkDirty(string containerName, CancellationToken cancellationToken = default)
     {
         if (_disposed.Value)
@@ -286,13 +297,29 @@ public sealed class ZelosDatabase : IZelosDatabase
         }
     }
 
+    /// <summary>
+    /// Gets container.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task containing the result of the operation.</returns>
     public ValueTask<IZelosContainer> GetContainer(string containerName, CancellationToken cancellationToken = default) =>
         _containers.Get(containerName, cancellationToken);
 
+    /// <summary>
+    /// Executes the unload container operation.
+    /// </summary>
+    /// <param name="containerName">The container name.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task containing the result of the operation.</returns>
     public ValueTask<bool> UnloadContainer(string containerName, CancellationToken cancellationToken = default)
         // Will dispose the container
         => _containers.Remove(containerName, cancellationToken);
 
+    /// <summary>
+    /// Asynchronously releases resources used by the current instance.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
     public async ValueTask DisposeAsync()
     {
         // first caller wins
