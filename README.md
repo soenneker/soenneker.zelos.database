@@ -3,11 +3,20 @@
 [![](https://img.shields.io/nuget/dt/soenneker.zelos.database.svg?style=for-the-badge)](https://www.nuget.org/packages/soenneker.zelos.database/)
 [![](https://img.shields.io/github/actions/workflow/status/soenneker/soenneker.zelos.database/codeql.yml?label=CodeQL&style=for-the-badge)](https://github.com/soenneker/soenneker.zelos.database/actions/workflows/codeql.yml)
 
-# ![](https://user-images.githubusercontent.com/4441470/224455560-91ed3ee7-f510-4041-a8d2-3fc093025112.png) Soenneker.Zelos.Database
-### A lightweight, thread-safe asynchronous JSON-based document database
+# Soenneker.Zelos.Database
 
-## Installation
+A lightweight, thread-safe asynchronous JSON-based document database.
 
-```
+## Install
+
+```bash
 dotnet add package Soenneker.Zelos.Database
 ```
+
+## What it provides
+
+- A lightweight, thread-safe asynchronous JSON-based document database.
+
+## How to use it
+
+Install the package, then consume the supplied build or runtime asset from your application. No service registration is required because this package exposes content rather than a callable API.
