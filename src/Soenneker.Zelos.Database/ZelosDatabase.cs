@@ -64,7 +64,8 @@ public sealed class ZelosDatabase : IZelosDatabase
             {
                 _logger.LogWarning("Zelos database file ({filePath}) not found. Creating new database...", _filePath);
 
-                await _fileUtil.Write(_filePath, new MemoryStream(), log: false, token);
+                using MemoryStream stream = await _memoryStreamUtil.Get(token).NoSync();
+                await _fileUtil.Write(_filePath, stream, log: false, token).NoSync();
             }
         });
 
