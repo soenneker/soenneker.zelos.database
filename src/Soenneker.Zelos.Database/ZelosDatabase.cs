@@ -197,7 +197,7 @@ public sealed class ZelosDatabase : IZelosDatabase
 
             using MemoryStream memoryStream = await _memoryStreamUtil.Get(cancellationToken)
                                                                      .NoSync();
-            await JsonUtil.SerializeToStream(memoryStream, data, null, null, cancellationToken)
+            await JsonUtil.SerializeToStream(memoryStream, data, LibraryJsonContext.Get<Dictionary<string, List<IdValuePair>>>(), cancellationToken)
                           .NoSync();
 
             memoryStream.ToStart();
@@ -266,7 +266,7 @@ public sealed class ZelosDatabase : IZelosDatabase
 
         try
         {
-            var data = JsonUtil.Deserialize<Dictionary<string, List<IdValuePair>>>(json)!;
+            var data = JsonUtil.Deserialize<Dictionary<string, List<IdValuePair>>>(json, LibraryJsonContext.Get<Dictionary<string, List<IdValuePair>>>())!;
             if (data != null)
                 return data;
         }
