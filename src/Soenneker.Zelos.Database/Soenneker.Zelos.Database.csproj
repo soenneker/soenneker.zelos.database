@@ -46,7 +46,7 @@
 
     <ItemGroup>
         <PackageReference Include="Soenneker.Utils.AsyncInitializers" Version="4.0.5" />
-        <PackageReference Include="Soenneker.Dictionaries.Singletons" Version="4.0.107" />
+        <PackageReference Include="Soenneker.Dictionaries.Singletons" Version="4.0.108" />
         <PackageReference Include="Soenneker.Zelos.Container" Version="4.0.554" />
     </ItemGroup>
 </Project>
