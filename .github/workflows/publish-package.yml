@@ -77,7 +77,7 @@ jobs:
             --output ./artifacts
 
       - name: Log in to NuGet
-        uses: soenneker/nuget-resilient-login@v6
+        uses: soenneker/nuget-resilient-login@v7
         id: nuget-login
         with:
           user: soenneker
