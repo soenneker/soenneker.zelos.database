@@ -13,7 +13,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write
   contents: write
   packages: write
 
@@ -76,12 +75,6 @@ jobs:
             --no-restore \
             --output ./artifacts
 
-      - name: Log in to NuGet
-        uses: soenneker/nuget-resilient-login@v6
-        id: nuget-login
-        with:
-          user: soenneker
-
       - name: Publish to NuGet
         shell: bash
         run: |
@@ -93,7 +86,7 @@ jobs:
             set +e
             dotnet nuget push ./artifacts/*.nupkg \
               --source "https://api.nuget.org/v3/index.json" \
-              --api-key "${{ steps.nuget-login.outputs.NUGET_API_KEY }}" \
+              --api-key "${{ secrets.NUGET__TOKEN }}" \
               --skip-duplicate 2>&1 | tee "$output_file"
             exit_code=${PIPESTATUS[0]}
             set -e
