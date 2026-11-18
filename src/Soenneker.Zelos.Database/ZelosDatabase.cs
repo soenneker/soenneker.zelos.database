@@ -58,7 +58,8 @@ public sealed class ZelosDatabase : IZelosDatabase
         {
             if (await _fileUtil.Exists(_filePath, token))
             {
-                _logger.LogDebug("Using Zelos database file ({filePath})", _filePath);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                    _logger.LogDebug("Using Zelos database file ({filePath})", _filePath);
             }
             else
             {
@@ -186,14 +187,16 @@ public sealed class ZelosDatabase : IZelosDatabase
         {
             foreach (string dirtyContainer in dirtyContainers)
             {
-                _logger.LogTrace("Saving container ({container})...", dirtyContainer);
+                if (_logger.IsEnabled(LogLevel.Trace))
+                    _logger.LogTrace("Saving container ({container})...", dirtyContainer);
 
                 IZelosContainer container = await _containers.Get(dirtyContainer, cancellationToken)
                                                              .NoSync();
                 data[dirtyContainer] = container.GetZelosItems();
             }
 
-            _logger.LogTrace("Saving data to Zelos database ({filePath})...", _filePath);
+            if (_logger.IsEnabled(LogLevel.Trace))
+                _logger.LogTrace("Saving data to Zelos database ({filePath})...", _filePath);
 
             using MemoryStream memoryStream = await _memoryStreamUtil.Get(cancellationToken)
                                                                      .NoSync();
@@ -327,7 +330,8 @@ public sealed class ZelosDatabase : IZelosDatabase
         if (!_disposed.TrySetTrue())
             return;
 
-        _logger.LogDebug("Disposing ZelosDatabase ({name})...", _filePath);
+        if (_logger.IsEnabled(LogLevel.Debug))
+            _logger.LogDebug("Disposing ZelosDatabase ({name})...", _filePath);
 
         // Stop the periodic timer loop
         try
